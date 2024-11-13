@@ -1,0 +1,23 @@
+black
+flake8
+ipython
+isort
+loguru
+matplotlib
+numpy
+pandas
+pip
+python-dotenv
+scikit-learn
+tqdm
+datargs
+lightning
+scikit-learn
+scikit-image
+torchvision
+albumentations
+wandb
+-e .
+
+202679NT0H7P3DST
+

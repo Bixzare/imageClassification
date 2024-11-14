@@ -17,8 +17,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allows all origins, replace "*" with specific origins if needed
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.) or specifiy
+    allow_headers=["*"],  # Allow all headers or specify
 )
 
 # Initialize model
@@ -28,32 +28,62 @@ model.load_state_dict(torch.load("model_weights.pth"))
 model.eval()
 
 # Image preprocessing function
-def preprocess_image(image_data: bytes):
-    pil_image = Image.open(BytesIO(image_data)).convert("RGB")
-    transform = transforms.Compose([
-        transforms.Resize((224, 224)),  # Resize image to 224x224
-        transforms.ToTensor(),
-    ])
-    return transform(pil_image).unsqueeze(0)
+def preprocess_image(image_data: bytes,process: str):
 
-# Prediction function
-def predict_image(tensor):
-    with torch.no_grad():
-        output = model(tensor)
-        probabilities = F.softmax(output, dim=1)
-        predicted_class = torch.argmax(probabilities, dim=1)
+    match process:
+        case "Mosquito":
+            pil_image = Image.open(BytesIO(image_data)).convert("RGB")
+            transform = transforms.Compose([
+                transforms.Resize((224, 224)),  # Resize image to 224x224
+                transforms.ToTensor(),
+            ])
+            return transform(pil_image).unsqueeze(0)
+        
+        case 'Pneumonia':
+            # tbd
+            return 0
+        case 'Placeholder1':
+            # tbd
+            return 0
 
-        # Return class based on predicted class
-        if predicted_class.item() == 0:
-            return "le moustique est un AE"
-        elif predicted_class.item() == 1:
-            return "le moustique est un AL"
-        elif predicted_class.item() == 2:
-            return "le moustique est un JA"
-        elif predicted_class.item() == 3:
-            return "le moustique est un KO"
-        else:
-            raise NotImplementedError()
+   
+
+# Prediction function with post processing
+def predict_image(tensor,process: str):
+    match process:
+        case "Mosquito":
+                with torch.no_grad():
+                    output = model(tensor)
+                    probabilities = F.softmax(output, dim=1)
+                    predicted_class = torch.argmax(probabilities, dim=1)
+
+                    # # Return class based on predicted class
+                    # if predicted_class.item() == 0:
+                    #     return "AE"
+                    # elif predicted_class.item() == 1:
+                    #     return "AL"
+                    # elif predicted_class.item() == 2:
+                    #     return "JA"
+                    # elif predicted_class.item() == 3:
+                    #     return "KO"
+                    # else:
+                    #     raise NotImplementedError()
+                     # Define the classes for easier mapping
+                    # Create a list of class-probability pairs, with class names included
+                    classes = ["AE", "AL", "JA", "KO"]
+                    class_probabilities = [
+                        {"class": classes[i], "probability": round(probabilities[0][i].item() * 100, 1)} 
+                        for i in range(probabilities.size(1))
+                    ]
+
+                    # Return the result with predicted class and class probabilities
+                    result = {
+                        "pred": classes[predicted_class.item()],
+                        "classes": class_probabilities
+                    }
+
+                    return result
+
 
 # FastAPI endpoint for prediction
 @app.post("/predict")
@@ -63,10 +93,10 @@ async def predict_image_and_process(image: UploadFile = File(...), process: str 
         image_data = await image.read()
 
         # Preprocess the image
-        tensor = preprocess_image(image_data)
+        tensor = preprocess_image(image_data,process)
 
         # Run prediction on the image
-        result = predict_image(tensor)
+        result = predict_image(tensor,process)
 
         # Optionally, you can also log or process the `process` string
         image_name = image.filename  # Get the file name of the uploaded image
@@ -76,4 +106,15 @@ async def predict_image_and_process(image: UploadFile = File(...), process: str 
         return JSONResponse(content={"process": process, "imageName": image_name, "result": result})
     
     except Exception as e:
+            
+        print(f"Error: {str(e)}")
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host = "127.0.0.1", port = 8000, reload = True)
+
+
+
+# python -m uvicorn python.app:app --reload (in root)
